@@ -54,5 +54,5 @@ jobs:
       - name: Upload package
         uses: actions/upload-artifact@v3
         with:
-          name: fhirstarter-packages
+          name: fhirstarter-packages@${{ matrix.fhir-sequence }}
           path: dist/*
