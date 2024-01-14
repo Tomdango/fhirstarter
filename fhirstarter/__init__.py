@@ -1,10 +1,10 @@
 from fastapi import Depends, Request, Response, status
 
 from .fhir_specification import FHIR_SEQUENCE, FHIR_VERSION
+from .fhir_specification.utils import is_resource_type
 from .fhirstarter import FHIRStarter
 from .interactions import InteractionContext
 from .providers import FHIRProvider
-from .utils import is_resource_type
 from .routing import parse_fhir_request
 
 __all__ = [
