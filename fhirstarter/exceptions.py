@@ -10,7 +10,8 @@ from fastapi import Request, status
 from fastapi.exceptions import HTTPException
 
 from .resources import OperationOutcome
-from .utils import make_operation_outcome, parse_fhir_request
+from .utils import make_operation_outcome
+from .routing import parse_fhir_request
 
 
 class FHIRException(HTTPException, ABC):

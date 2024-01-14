@@ -1,9 +1,8 @@
-name: tests
+name: CI Build
 on:
-  push:
-    branches:
-      - 'main'
+  push:      
   pull_request:
+
 jobs:
   run-tests:
     runs-on: ubuntu-latest
@@ -20,20 +19,40 @@ jobs:
             fhir-resources-dependency: ^7.0.0
           - fhir-sequence: R4
             fhir-resources-dependency: ~6.4.0
+    
     steps:
-    - uses: actions/checkout@v4
-    - name: Install Poetry
-      run: pipx install poetry
-    - name: Install Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'poetry'
-    - name: Install Python packages
-      run: |
-        poetry add "fhir.resources"@${{ matrix.fhir-resources-dependency }}
-        poetry install
-    - name: Run tests
-      env:
-        FHIR_SEQUENCE: ${{ matrix.fhir-sequence }}
-      run: poetry run pytest
+      - uses: actions/checkout@v4
+      
+      - name: Install Poetry
+        run: pipx install poetry
+      
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'poetry'
+    
+      - name: Install Python packages
+        run: |
+          poetry add "fhir.resources"@${{ matrix.fhir-resources-dependency }}
+          poetry install
+      
+      - name: Run formatting checks
+        run: poetry run black --check .
+
+      - name: Run linting checks
+        run: poetry run ruff check .
+
+      - name: Run tests
+        env:
+          FHIR_SEQUENCE: ${{ matrix.fhir-sequence }}
+        run: poetry run pytest --cov --cov-report term-missing
+      
+      - name: Build package
+        run: poetry build
+
+      - name: Upload package
+        uses: actions/upload-artifact@v3
+        with:
+          name: fhirstarter-packages@${{ matrix.fhir-sequence }}
+          path: dist/*

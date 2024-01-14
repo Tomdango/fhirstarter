@@ -2,7 +2,7 @@
 
 import pytest
 
-from ..utils import InteractionInfo, parse_fhir_request
+from ..routing import InteractionInfo, parse_fhir_request
 from .utils import generate_fhir_resource_id, make_request
 
 
@@ -19,126 +19,198 @@ from .utils import generate_fhir_resource_id, make_request
                 "capabilitites",
                 "GET",
                 "/metadata",
-                InteractionInfo(  # type: ignore[call-arg]
+                InteractionInfo(
                     resource_type=None,
                     interaction_type="capabilities",
                     resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "create",
                 "POST",
                 "/Patient",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type="Patient", interaction_type="create", resource_id=None
+                InteractionInfo(
+                    resource_type="Patient",
+                    interaction_type="create",
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "read",
                 "GET",
                 f"/Patient/{(id_ := generate_fhir_resource_id())}",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type="Patient", interaction_type="read", resource_id=id_
+                InteractionInfo(
+                    resource_type="Patient",
+                    interaction_type="read",
+                    resource_id=id_,
+                    version_id=None,
+                ),
+            ),
+            (
+                "vread",
+                "GET",
+                f"/Patient/{(id_ := generate_fhir_resource_id())}/_history/{(vid_ := generate_fhir_resource_id())}",
+                InteractionInfo(
+                    resource_type="Patient",
+                    interaction_type="vread",
+                    resource_id=id_,
+                    version_id=vid_,
                 ),
             ),
             (
                 "search-type",
                 "GET",
                 "/Patient",
-                InteractionInfo(  # type: ignore[call-arg]
+                InteractionInfo(
                     resource_type="Patient",
                     interaction_type="search-type",
                     resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "search-type post",
                 "POST",
                 "/Patient/_search",
-                InteractionInfo(  # type: ignore[call-arg]
+                InteractionInfo(
                     resource_type="Patient",
                     interaction_type="search-type",
                     resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "update",
                 "PUT",
                 f"/Patient/{(id_ := generate_fhir_resource_id())}",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type="Patient", interaction_type="update", resource_id=id_
+                InteractionInfo(
+                    resource_type="Patient",
+                    interaction_type="update",
+                    resource_id=id_,
+                    version_id=None,
+                ),
+            ),
+            (
+                "patch",
+                "PATCH",
+                f"/Patient/{(id_ := generate_fhir_resource_id())}",
+                InteractionInfo(
+                    resource_type="Patient",
+                    interaction_type="patch",
+                    resource_id=id_,
+                    version_id=None,
+                ),
+            ),
+            (
+                "delete",
+                "DELETE",
+                f"/Patient/{(id_ := generate_fhir_resource_id())}",
+                InteractionInfo(
+                    resource_type="Patient",
+                    interaction_type="delete",
+                    resource_id=id_,
+                    version_id=None,
                 ),
             ),
             (
                 "read unrecognized resource type",
                 "GET",
                 f"/FakeResource/{(id_ := generate_fhir_resource_id())}",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type=None, interaction_type=None, resource_id=None
+                InteractionInfo(
+                    resource_type=None,
+                    interaction_type=None,
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "search unrecognized resource type",
                 "GET",
-                f"/FakeResource",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type=None, interaction_type=None, resource_id=None
+                "/FakeResource",
+                InteractionInfo(
+                    resource_type=None,
+                    interaction_type=None,
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "unrecognized GET path",
                 "GET",
                 f"/Patient/{(id_ := generate_fhir_resource_id())}/extra",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type=None, interaction_type=None, resource_id=None
+                InteractionInfo(
+                    resource_type=None,
+                    interaction_type=None,
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "create unrecognized resource type",
                 "POST",
                 "/FakeResource",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type=None, interaction_type=None, resource_id=None
+                InteractionInfo(
+                    resource_type=None,
+                    interaction_type=None,
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "search POST unrecognized resource type",
                 "POST",
                 "/FakeResource/_search",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type=None, interaction_type=None, resource_id=None
+                InteractionInfo(
+                    resource_type=None,
+                    interaction_type=None,
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "unrecognized POST path",
                 "POST",
                 "/FakeResource/extra",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type=None, interaction_type=None, resource_id=None
+                InteractionInfo(
+                    resource_type=None,
+                    interaction_type=None,
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "update unrecognized resource type",
                 "PUT",
                 f"/FakeResource/{(id_ := generate_fhir_resource_id())}",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type=None, interaction_type=None, resource_id=None
+                InteractionInfo(
+                    resource_type=None,
+                    interaction_type=None,
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "unrecognized PUT path",
                 "PUT",
                 f"/FakeResource/{(id_ := generate_fhir_resource_id())}/extra",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type=None, interaction_type=None, resource_id=None
+                InteractionInfo(
+                    resource_type=None,
+                    interaction_type=None,
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
             (
                 "unsupported HTTP method",
                 "HEAD",
                 f"/Patient/{(id_ := generate_fhir_resource_id())}/extra",
-                InteractionInfo(  # type: ignore[call-arg]
-                    resource_type=None, interaction_type=None, resource_id=None
+                InteractionInfo(
+                    resource_type=None,
+                    interaction_type=None,
+                    resource_id=None,
+                    version_id=None,
                 ),
             ),
         ]

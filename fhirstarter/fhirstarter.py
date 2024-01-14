@@ -23,8 +23,11 @@ from .functions import (
     PRETTY_QP,
     make_create_function,
     make_read_function,
+    make_vread_function,
     make_search_type_function,
     make_update_function,
+    make_patch_function,
+    make_delete_function,
 )
 from .interactions import ResourceType, TypeInteraction
 from .openapi import adjust_schema
@@ -41,11 +44,14 @@ from .utils import (
     create_route_args,
     format_response,
     make_operation_outcome,
-    parse_fhir_request,
     read_route_args,
     search_type_route_args,
     update_route_args,
+    vread_route_args,
+    patch_route_args,
+    delete_route_args,
 )
+from .routing import parse_fhir_request
 
 # Suppress warnings from base fhir.resources class
 logging.getLogger("fhir.resources.core.fhirabstractmodel").setLevel(logging.WARNING + 1)
@@ -391,10 +397,17 @@ class FHIRStarter(FastAPI):
                 self.post(**create_route_args(interaction))(
                     make_create_function(interaction)
                 )
+
             case "read":
                 self.get(**read_route_args(interaction))(
                     make_read_function(interaction)
                 )
+
+            case "vread":
+                self.get(**vread_route_args(interaction))(
+                    make_vread_function(interaction)
+                )
+
             case "search-type":
                 search_parameter_metadata = self._search_parameters.get_metadata(
                     interaction.resource_type.get_resource_type()
@@ -416,6 +429,14 @@ class FHIRStarter(FastAPI):
             case "update":
                 self.put(**update_route_args(interaction))(
                     make_update_function(interaction)
+                )
+            case "patch":
+                self.patch(**patch_route_args(interaction))(
+                    make_patch_function(interaction)
+                )
+            case "delete":
+                self.delete(**delete_route_args(interaction))(
+                    make_delete_function(interaction)
                 )
 
 

@@ -37,7 +37,7 @@ match FHIR_SEQUENCE:
         FHIR_DIR = cast(Path, importlib.resources.files(sequences.R5))
     case _:
         raise AssertionError(
-            f"Specified FHIR sequence must be one of: STU3, R4, R4B, R5"
+            "Specified FHIR sequence must be one of: STU3, R4, R4B, R5"
         )
 
 
