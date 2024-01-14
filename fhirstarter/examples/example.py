@@ -69,6 +69,16 @@ async def patient_read(context: InteractionContext, id_: Id) -> Patient:
     return patient
 
 
+# Register the patient vread FHIR interaction with the provider
+@provider.vread(Patient)
+async def patient_vread(context: InteractionContext, id_: Id, version: str) -> Patient:
+    patient = DATABASE.get(id_)
+    if not patient:
+        raise FHIRResourceNotFoundError
+
+    return patient
+
+
 # Register the patient search-type FHIR interaction with the provider
 @provider.search_type(Patient)
 async def patient_search_type(
@@ -106,6 +116,31 @@ async def patient_update(context: InteractionContext, id_: Id, resource: Patient
     DATABASE[id_] = patient
 
     return Id(patient.id)
+
+
+@provider.patch(Patient)
+async def patient_patch(
+    context: InteractionContext, id_: Id, resource: dict | str
+) -> Id:
+    if id_ not in DATABASE:
+        raise FHIRResourceNotFoundError
+
+    patient = DATABASE[id_]
+    if isinstance(resource, dict):
+        patient = patient.copy(update=resource)
+    else:
+        patient = patient.copy(update=eval(resource))
+    DATABASE[id_] = patient
+
+    return Id(patient.id)
+
+
+@provider.delete(Patient)
+async def patient_delete(context: InteractionContext, id_: Id) -> None:
+    if id_ not in DATABASE:
+        raise FHIRResourceNotFoundError
+
+    del DATABASE[id_]
 
 
 # Optional: Provide a custom example for the automatic documentation by defining a subclass of the

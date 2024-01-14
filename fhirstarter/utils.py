@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, Response
 from . import status
 from .fhir_specification.utils import is_resource_type
 from .interactions import ResourceType, SearchTypeInteraction, TypeInteraction
-from .resources import Bundle, OperationOutcome, Resource
+from .resources import Bundle, OperationOutcome, Resource, Id
 
 
 @dataclass
@@ -316,6 +316,32 @@ def read_route_args(interaction: TypeInteraction[ResourceType]) -> dict[str, Any
     }
 
 
+def vread_route_args(interaction: TypeInteraction[ResourceType]) -> dict[str, Any]:
+    """Provide arguments for creation of a FHIR vread API route."""
+    resource_type_str = interaction.resource_type.get_resource_type()
+
+    return {
+        "path": f"/{resource_type_str}/{{id}}/_history/{{vid}}",
+        "response_model": interaction.resource_type,
+        "status_code": status.HTTP_200_OK,
+        "tags": [f"Type:{resource_type_str}"],
+        "summary": f"{resource_type_str} {interaction.label()}",
+        "description": f"The {resource_type_str} vread interaction accesses "
+        f"a specific version of a {resource_type_str} resource.",
+        "responses": _responses(
+            interaction,
+            _ok,
+            _unauthorized,
+            _forbidden,
+            _not_found,
+            _internal_server_error,
+        ),
+        "operation_id": f"fhirstarter|instance|vread|get|{resource_type_str}|{interaction.resource_type.__module__}|{interaction.resource_type.__name__}",
+        "response_model_exclude_none": True,
+        **interaction.route_options,
+    }
+
+
 def search_type_route_args(
     interaction: TypeInteraction[ResourceType], post: bool
 ) -> dict[str, Any]:
@@ -367,6 +393,61 @@ def update_route_args(interaction: TypeInteraction[ResourceType]) -> dict[str, A
             _internal_server_error,
         ),
         "operation_id": f"fhirstarter|instance|update|put|{resource_type_str}|{interaction.resource_type.__module__}|{interaction.resource_type.__name__}",
+        "response_model_exclude_none": True,
+        **interaction.route_options,
+    }
+
+
+def patch_route_args(interaction: TypeInteraction[ResourceType]) -> dict[str, Any]:
+    """Provide arguments for creation of a FHIR patch API route."""
+    resource_type_str = interaction.resource_type.get_resource_type()
+
+    return {
+        "path": f"/{resource_type_str}/{{id}}",
+        "response_model": interaction.resource_type | Id | None,
+        "status_code": status.HTTP_200_OK,
+        "tags": [f"Type:{resource_type_str}"],
+        "summary": f"{resource_type_str} {interaction.label()}",
+        "description": f"The {resource_type_str} patch interaction "
+        f"modifies an existing {resource_type_str} resource.",
+        "responses": _responses(
+            interaction,
+            _ok,
+            _bad_request,
+            _unauthorized,
+            _forbidden,
+            _not_found,
+            _unprocessable_entity,
+            _internal_server_error,
+        ),
+        "operation_id": f"fhirstarter|instance|patch|patch|{resource_type_str}|{interaction.resource_type.__module__}|{interaction.resource_type.__name__}",
+        "response_model_exclude_none": True,
+        **interaction.route_options,
+    }
+
+
+def delete_route_args(interaction: TypeInteraction[ResourceType]) -> dict[str, Any]:
+    """Provide arguments for creation of a FHIR delete API route."""
+    resource_type_str = interaction.resource_type.get_resource_type()
+
+    return {
+        "path": f"/{resource_type_str}/{{id}}",
+        "response_model": OperationOutcome | None,
+        "status_code": status.HTTP_200_OK,
+        "tags": [f"Type:{resource_type_str}"],
+        "summary": f"{resource_type_str} {interaction.label()}",
+        "description": f"The {resource_type_str} delete interaction "
+        f"deletes an existing {resource_type_str} resource.",
+        "responses": _responses(
+            interaction,
+            _ok,
+            _bad_request,
+            _unauthorized,
+            _forbidden,
+            _not_found,
+            _internal_server_error,
+        ),
+        "operation_id": f"fhirstarter|instance|delete|delete|{resource_type_str}|{interaction.resource_type.__module__}|{interaction.resource_type.__name__}",
         "response_model_exclude_none": True,
         **interaction.route_options,
     }

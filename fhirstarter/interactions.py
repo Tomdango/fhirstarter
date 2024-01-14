@@ -7,7 +7,7 @@ from typing import Any, Generic, Literal, TypeVar
 
 from fastapi import Request, Response
 
-from .resources import Bundle, Id, Resource
+from .resources import Bundle, Id, Resource, OperationOutcome
 
 ResourceType = TypeVar("ResourceType", bound=Resource)
 
@@ -25,17 +25,36 @@ CreateInteractionHandler = Callable[
 ReadInteractionHandler = Callable[
     [InteractionContext, Id], Coroutine[None, None, ResourceType] | ResourceType
 ]
+VReadInteractionHandler = Callable[
+    [InteractionContext, Id, Id], Coroutine[None, None, ResourceType] | ResourceType
+]
+SearchTypeInteractionHandler = Callable[..., Coroutine[None, None, Bundle] | Bundle]
+HistoryInteractionHandler = Callable[
+    [InteractionContext, Id], Coroutine[None, None, Bundle] | Bundle
+]
 UpdateInteractionHandler = Callable[
     [InteractionContext, Id, ResourceType],
     Coroutine[None, None, Id | ResourceType] | Id | ResourceType,
 ]
-SearchTypeInteractionHandler = Callable[..., Coroutine[None, None, Bundle] | Bundle]
+PatchInteractionHandler = Callable[
+    [InteractionContext, Id, dict | str],
+    Coroutine[None, None, Id | ResourceType] | Id | ResourceType,
+]
+DeleteInteractionHandler = Callable[
+    [InteractionContext, Id],
+    Coroutine[None, None, OperationOutcome | None] | OperationOutcome | None,
+]
+
 
 InteractionHandler = (
     CreateInteractionHandler[ResourceType]
     | ReadInteractionHandler[ResourceType]
+    | VReadInteractionHandler[ResourceType]
     | SearchTypeInteractionHandler
+    | HistoryInteractionHandler
     | UpdateInteractionHandler[ResourceType]
+    | PatchInteractionHandler[ResourceType]
+    | DeleteInteractionHandler
 )
 
 
@@ -78,13 +97,37 @@ class ReadInteraction(TypeInteraction[ResourceType]):
         return "read"
 
 
+class VReadInteraction(TypeInteraction[ResourceType]):
+    @staticmethod
+    def label() -> Literal["vread"]:
+        return "vread"
+
+
 class SearchTypeInteraction(TypeInteraction[ResourceType]):
     @staticmethod
     def label() -> Literal["search-type"]:
         return "search-type"
 
 
+class HistoryInteraction(TypeInteraction[ResourceType]):
+    @staticmethod
+    def label() -> Literal["history"]:
+        return "history"
+
+
 class UpdateInteraction(TypeInteraction[ResourceType]):
     @staticmethod
     def label() -> Literal["update"]:
         return "update"
+
+
+class PatchInteraction(TypeInteraction[ResourceType]):
+    @staticmethod
+    def label() -> Literal["patch"]:
+        return "patch"
+
+
+class DeleteInteraction(TypeInteraction[ResourceType]):
+    @staticmethod
+    def label() -> Literal["delete"]:
+        return "delete"

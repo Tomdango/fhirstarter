@@ -18,6 +18,14 @@ from .interactions import (
     TypeInteraction,
     UpdateInteraction,
     UpdateInteractionHandler,
+    VReadInteraction,
+    VReadInteractionHandler,
+    HistoryInteraction,
+    HistoryInteractionHandler,
+    PatchInteraction,
+    PatchInteractionHandler,
+    DeleteInteraction,
+    DeleteInteractionHandler,
 )
 from .resources import Resource
 
@@ -87,6 +95,24 @@ class FHIRProvider:
             include_in_schema,
         )
 
+    def vread(
+        self,
+        resource_type: type[ResourceType],
+        *,
+        dependencies: Sequence[params.Depends] | None = None,
+        include_in_schema: bool = True,
+    ) -> Callable[
+        [VReadInteractionHandler[ResourceType]],
+        VReadInteractionHandler[ResourceType],
+    ]:
+        """Register a FHIR vread interaction."""
+        return self._register_type_interaction(
+            resource_type,
+            VReadInteraction[ResourceType],
+            dependencies,
+            include_in_schema,
+        )
+
     def search_type(
         self,
         resource_type: type[ResourceType],
@@ -98,6 +124,21 @@ class FHIRProvider:
         return self._register_type_interaction(
             resource_type,
             SearchTypeInteraction[ResourceType],
+            dependencies,
+            include_in_schema,
+        )
+
+    def history(
+        self,
+        resource_type: type[ResourceType],
+        *,
+        dependencies: Sequence[params.Depends] | None = None,
+        include_in_schema: bool = True,
+    ) -> Callable[[HistoryInteractionHandler], HistoryInteractionHandler]:
+        """Register a FHIR history interaction."""
+        return self._register_type_interaction(
+            resource_type,
+            HistoryInteraction[ResourceType],
             dependencies,
             include_in_schema,
         )
@@ -115,6 +156,38 @@ class FHIRProvider:
         return self._register_type_interaction(
             resource_type,
             UpdateInteraction[ResourceType],
+            dependencies,
+            include_in_schema,
+        )
+
+    def patch(
+        self,
+        resource_type: type[ResourceType],
+        *,
+        dependencies: Sequence[params.Depends] | None = None,
+        include_in_schema: bool = True,
+    ) -> Callable[
+        [PatchInteractionHandler[ResourceType]], PatchInteractionHandler[ResourceType]
+    ]:
+        """Register a FHIR patch interaction."""
+        return self._register_type_interaction(
+            resource_type,
+            PatchInteraction[ResourceType],
+            dependencies,
+            include_in_schema,
+        )
+
+    def delete(
+        self,
+        resource_type: type[ResourceType],
+        *,
+        dependencies: Sequence[params.Depends] | None = None,
+        include_in_schema: bool = True,
+    ) -> Callable[[DeleteInteractionHandler], DeleteInteractionHandler]:
+        """Register a FHIR delete interaction."""
+        return self._register_type_interaction(
+            resource_type,
+            DeleteInteraction[ResourceType],
             dependencies,
             include_in_schema,
         )

@@ -34,8 +34,11 @@ from .interactions import (
     SearchTypeInteractionHandler,
     TypeInteraction,
     UpdateInteractionHandler,
+    VReadInteractionHandler,
+    PatchInteractionHandler,
+    DeleteInteractionHandler,
 )
-from .resources import Bundle, Id, Resource
+from .resources import Bundle, Id, Resource, OperationOutcome
 from .search_parameters import (
     search_parameter_sort_key,
     supported_search_parameters,
@@ -54,146 +57,127 @@ FORMAT_QP = Query(None, description=_FORMAT_PARAMETER_DESCRIPTION)
 PRETTY_QP = Query(None, description=_PRETTY_PARAMETER_DESCRIPTION)
 
 
-# Note: I'm not currently aware of a better way do support both async and non-async handlers than
-#       branching based on the result of the iscoroutinefunction function and duplicating most of
-#       the code. If there is a better way to do this, I will refactor later.
-
-
 def make_create_function(
     interaction: TypeInteraction[ResourceType],
 ) -> Callable[
     [Request, Response, ResourceType, str, str],
-    Coroutine[None, None, ResourceType | Response | None]
-    | ResourceType
-    | Response
-    | None,
+    Coroutine[None, None, ResourceType | Response | None],
 ]:
     """Make a function suitable for creation of a FHIR create API route."""
     resource_type_str = interaction.resource_type.get_resource_type()
 
-    if iscoroutinefunction(interaction.handler):
+    async def create(
+        request: Request,
+        response: Response,
+        resource: ResourceType,
+        _format: str = FORMAT_QP,
+        _pretty: str = PRETTY_QP,
+    ) -> ResourceType | Response | None:
+        """
+        Function for create interaction.
 
-        async def create_async(
-            request: Request,
-            response: Response,
-            resource: ResourceType,
-            _format: str = FORMAT_QP,
-            _pretty: str = PRETTY_QP,
-        ) -> ResourceType | Response | None:
-            """
-            Function for create interaction.
+        Calls the handler, and sets the Location header based on the Id of the created resource.
+        """
+        handler = cast(CreateInteractionHandler[ResourceType], interaction.handler)
+        if iscoroutinefunction(handler):
+            result = await handler(InteractionContext(request, response), resource)
+        else:
+            result = handler(InteractionContext(request, response), resource)
 
-            Calls the handler, and sets the Location header based on the Id of the created resource.
-            """
-            handler = cast(CreateInteractionHandler[ResourceType], interaction.handler)
-            result = await handler(InteractionContext(request, response), resource)  # type: ignore[call-arg]
-            id_, result_resource = _result_to_id_resource_tuple(result)
+        id_, result_resource = _result_to_id_resource_tuple(result)
+        response.headers[
+            "Location"
+        ] = f"{request.base_url}{resource_type_str}/{id_}/_history/1"
 
-            response.headers[
-                "Location"
-            ] = f"{request.base_url}{resource_type_str}/{id_}/_history/1"
+        return format_response(
+            resource=result_resource,
+            response=response,
+            format_parameters=FormatParameters.from_request(request),
+        )
 
-            return format_response(
-                resource=result_resource,
-                response=response,
-                format_parameters=FormatParameters.from_request(request),
-            )
+    create.__annotations__ |= {
+        "resource": interaction.resource_type,
+    }
 
-        create_async.__annotations__ |= {
-            "resource": interaction.resource_type,
-        }
-
-        return create_async
-    else:
-
-        def create(
-            request: Request,
-            response: Response,
-            resource: ResourceType,
-            _format: str = FORMAT_QP,
-            _pretty: str = PRETTY_QP,
-        ) -> ResourceType | Response | None:
-            """
-            Function for create interaction.
-
-            Calls the handler, and sets the Location header based on the Id of the created resource.
-            """
-            handler = cast(CreateInteractionHandler[ResourceType], interaction.handler)
-            result = handler(InteractionContext(request, response), resource)  # type: ignore[call-arg]
-            id_, result_resource = _result_to_id_resource_tuple(result)
-
-            response.headers[
-                "Location"
-            ] = f"{request.base_url}{resource_type_str}/{id_}/_history/1"
-
-            return format_response(
-                resource=result_resource,
-                response=response,
-                format_parameters=FormatParameters.from_request(request),
-            )
-
-        create.__annotations__ |= {
-            "resource": interaction.resource_type,
-        }
-
-        return create
+    return create
 
 
 def make_read_function(
     interaction: TypeInteraction[ResourceType],
 ) -> Callable[
     [Request, Response, Id, str, str],
-    Coroutine[None, None, ResourceType | Response] | ResourceType | Response,
+    Coroutine[None, None, ResourceType | Response],
 ]:
     """Make a function suitable for creation of a FHIR read API route."""
 
-    if iscoroutinefunction(interaction.handler):
+    async def read(
+        request: Request,
+        response: Response,
+        id_: Id = Path(
+            alias="id",
+            description=Resource.schema()["properties"]["id"]["title"],
+        ),
+        _format: str = FORMAT_QP,
+        _pretty: str = PRETTY_QP,
+    ) -> ResourceType | Response:
+        """Function for read interaction."""
+        handler = cast(ReadInteractionHandler[ResourceType], interaction.handler)
 
-        async def read_async(
-            request: Request,
-            response: Response,
-            id_: Id = Path(
-                alias="id",
-                description=Resource.schema()["properties"]["id"]["title"],
-            ),
-            _format: str = FORMAT_QP,
-            _pretty: str = PRETTY_QP,
-        ) -> ResourceType | Response:
-            """Function for read interaction."""
-            handler = cast(ReadInteractionHandler[ResourceType], interaction.handler)
-            result_resource = await handler(InteractionContext(request, response), id_)  # type: ignore[call-arg]
+        if iscoroutinefunction(handler):
+            result_resource = await handler(InteractionContext(request, response), id_)
+        else:
+            result_resource = handler(InteractionContext(request, response), id_)
 
-            return format_response(
-                resource=result_resource,
-                response=response,
-                format_parameters=FormatParameters.from_request(request),
+        return format_response(
+            resource=result_resource,
+            response=response,
+            format_parameters=FormatParameters.from_request(request),
+        )
+
+    return read
+
+
+def make_vread_function(
+    interaction: TypeInteraction[ResourceType],
+) -> Callable[
+    [Request, Response, Id, Id, str, str],
+    Coroutine[None, None, ResourceType | Response],
+]:
+    """Make a function suitable for creation of a FHIR read API route."""
+
+    async def vread(
+        request: Request,
+        response: Response,
+        id_: Id = Path(
+            alias="id",
+            description=Resource.schema()["properties"]["id"]["title"],
+        ),
+        vid: Id = Path(
+            alias="vid",
+            description="Version Id of this artifact",
+        ),
+        _format: str = FORMAT_QP,
+        _pretty: str = PRETTY_QP,
+    ) -> ResourceType | Response:
+        """Function for vread interaction."""
+        handler = cast(VReadInteractionHandler[ResourceType], interaction.handler)
+
+        print(Resource.schema()["properties"])
+
+        if iscoroutinefunction(handler):
+            result_resource = await handler(
+                InteractionContext(request, response), id_, vid
             )
+        else:
+            result_resource = handler(InteractionContext(request, response), id_, vid)
 
-        return read_async
+        return format_response(
+            resource=result_resource,
+            response=response,
+            format_parameters=FormatParameters.from_request(request),
+        )
 
-    else:
-
-        def read(
-            request: Request,
-            response: Response,
-            id_: Id = Path(
-                alias="id",
-                description=Resource.schema()["properties"]["id"]["title"],
-            ),
-            _format: str = FORMAT_QP,
-            _pretty: str = PRETTY_QP,
-        ) -> ResourceType | Response:
-            """Function for read interaction."""
-            handler = cast(ReadInteractionHandler[ResourceType], interaction.handler)
-            result_resource = handler(InteractionContext(request, response), id_)  # type: ignore[call-arg]
-
-            return format_response(
-                resource=result_resource,
-                response=response,
-                format_parameters=FormatParameters.from_request(request),
-            )
-
-        return read
+    return vread
 
 
 # TODO: If possible, map FHIR primitives to correct type annotations for better validation
@@ -201,10 +185,7 @@ def make_search_type_function(
     interaction: TypeInteraction[ResourceType],
     search_parameter_metadata: dict[str, dict[str, str]],
     post: bool,
-) -> Callable[
-    [Request, Response, str, str],
-    Coroutine[None, None, Bundle | Response] | Bundle | Response,
-]:
+) -> Callable[[Request, Response, str, str], Coroutine[None, None, Bundle | Response],]:
     """
     Make a function suitable for creation of a FHIR search-type API route.
 
@@ -236,136 +217,158 @@ def make_search_type_function(
         for search_parameter in supported_search_parameters(interaction.handler)
     )
 
-    if iscoroutinefunction(interaction.handler):
+    async def search_type(
+        request: Request,
+        response: Response,
+        *,
+        _format: str = format_annotation,
+        _pretty: str = pretty_annotation,
+        **kwargs: str,
+    ) -> Bundle | Response:
+        """Function for search-type interaction."""
+        handler = cast(SearchTypeInteractionHandler, interaction.handler)
+        if iscoroutinefunction(handler):
+            bundle = await handler(InteractionContext(request, response), **kwargs)
+        else:
+            bundle = handler(InteractionContext(request, response), **kwargs)
 
-        async def search_type_async(
-            request: Request,
-            response: Response,
-            *,
-            _format: str = format_annotation,
-            _pretty: str = pretty_annotation,
-            **kwargs: str,
-        ) -> Bundle | Response:
-            """Function for search-type interaction."""
-            handler = cast(SearchTypeInteractionHandler, interaction.handler)
-            bundle = await handler(InteractionContext(request, response), **kwargs)  # type: ignore[call-arg]
-
-            return format_response(
-                resource=bundle,
-                response=response,
-                format_parameters=FormatParameters.from_request(request),
-            )
-
-        return _set_search_type_function_signature(
-            search_type_async, search_parameters, search_parameter_metadata
+        return format_response(
+            resource=bundle,
+            response=response,
+            format_parameters=FormatParameters.from_request(request),
         )
 
-    else:
-
-        def search_type(
-            request: Request,
-            response: Response,
-            *,
-            _format: str = format_annotation,
-            _pretty: str = pretty_annotation,
-            **kwargs: str,
-        ) -> Bundle | Response:
-            """Function for search-type interaction."""
-            handler = cast(SearchTypeInteractionHandler, interaction.handler)
-            bundle = handler(InteractionContext(request, response), **kwargs)  # type: ignore[call-arg]
-
-            return format_response(
-                resource=bundle,
-                response=response,
-                format_parameters=FormatParameters.from_request(request),
-            )
-
-        return _set_search_type_function_signature(
-            search_type, search_parameters, search_parameter_metadata
-        )
+    return _set_search_type_function_signature(
+        search_type, search_parameters, search_parameter_metadata
+    )
 
 
 def make_update_function(
     interaction: TypeInteraction[ResourceType],
 ) -> Callable[
     [Request, Response, ResourceType, Id, str, str],
-    Coroutine[None, None, ResourceType | Response | None]
-    | ResourceType
-    | Response
-    | None,
+    Coroutine[None, None, ResourceType | Response | None],
 ]:
     """Make a function suitable for creation of a FHIR update API route."""
 
-    if iscoroutinefunction(interaction.handler):
+    async def update(
+        request: Request,
+        response: Response,
+        resource: ResourceType,
+        id_: Id = Path(
+            alias="id",
+            description=Resource.schema()["properties"]["id"]["title"],
+        ),
+        _format: str = FORMAT_QP,
+        _pretty: str = PRETTY_QP,
+    ) -> ResourceType | Response | None:
+        """Function for update interaction."""
+        if resource and resource.id and id_ != resource.id:
+            raise FHIRBadRequestError(
+                code="invalid",
+                details_text="Logical Id in URL must match logical Id in resource",
+            )
 
-        async def update_async(
-            request: Request,
-            response: Response,
-            resource: ResourceType,
-            id_: Id = Path(
-                alias="id",
-                description=Resource.schema()["properties"]["id"]["title"],
-            ),
-            _format: str = FORMAT_QP,
-            _pretty: str = PRETTY_QP,
-        ) -> ResourceType | Response | None:
-            """Function for update interaction."""
-            if resource and resource.id and id_ != resource.id:
-                raise FHIRBadRequestError(
-                    code="invalid",
-                    details_text="Logical Id in URL must match logical Id in resource",
-                )
-
-            handler = cast(UpdateInteractionHandler[ResourceType], interaction.handler)
+        handler = cast(UpdateInteractionHandler[ResourceType], interaction.handler)
+        if iscoroutinefunction(handler):
             result = await handler(InteractionContext(request, response), id_, resource)  # type: ignore[call-arg]
-            _, result_resource = _result_to_id_resource_tuple(result)
+        else:
+            result = handler(InteractionContext(request, response), id_, resource)
 
-            return format_response(
-                resource=result_resource,
-                response=response,
-                format_parameters=FormatParameters.from_request(request),
-            )
+        _, result_resource = _result_to_id_resource_tuple(result)
 
-        update_async.__annotations__ |= {
-            "resource": interaction.resource_type,
-        }
+        return format_response(
+            resource=result_resource,
+            response=response,
+            format_parameters=FormatParameters.from_request(request),
+        )
 
-        return update_async
-    else:
+    update.__annotations__ |= {
+        "resource": interaction.resource_type,
+    }
 
-        def update(
-            request: Request,
-            response: Response,
-            resource: ResourceType,
-            id_: Id = Path(
-                alias="id",
-                description=Resource.schema()["properties"]["id"]["title"],
-            ),
-            _format: str = FORMAT_QP,
-            _pretty: str = PRETTY_QP,
-        ) -> ResourceType | Response | None:
-            """Function for update interaction."""
-            if resource and resource.id and id_ != resource.id:
-                raise FHIRBadRequestError(
-                    code="invalid",
-                    details_text="Logical Id in URL must match logical Id in resource",
-                )
+    return update
 
-            handler = cast(UpdateInteractionHandler[ResourceType], interaction.handler)
-            result = handler(InteractionContext(request, response), id_, resource)  # type: ignore[call-arg]
-            _, result_resource = _result_to_id_resource_tuple(result)
 
-            return format_response(
-                resource=result_resource,
-                response=response,
-                format_parameters=FormatParameters.from_request(request),
-            )
+def make_patch_function(
+    interaction: TypeInteraction[ResourceType],
+) -> Callable[
+    [Request, Response, dict | str, Id, str, str],
+    Coroutine[None, None, ResourceType | Response | None],
+]:
+    """Make a function suitable for creation of a FHIR patch API route."""
 
-        update.__annotations__ |= {
-            "resource": interaction.resource_type,
-        }
+    async def patch(
+        request: Request,
+        response: Response,
+        patch: dict | str,
+        id_: Id = Path(
+            alias="id",
+            description=Resource.schema()["properties"]["id"]["title"],
+        ),
+        _format: str = FORMAT_QP,
+        _pretty: str = PRETTY_QP,
+    ) -> ResourceType | Response | None:
+        """Function for patch interaction."""
+        handler = cast(PatchInteractionHandler[ResourceType], interaction.handler)
+        if iscoroutinefunction(handler):
+            result = await handler(InteractionContext(request, response), id_, patch)
+        else:
+            result = handler(InteractionContext(request, response), id_, patch)
 
-        return update
+        _, result_resource = _result_to_id_resource_tuple(result)
+
+        return format_response(
+            resource=result_resource,
+            response=response,
+            format_parameters=FormatParameters.from_request(request),
+        )
+
+    patch.__annotations__ |= {
+        "resource": interaction.resource_type,
+    }
+
+    return patch
+
+
+def make_delete_function(
+    interaction: TypeInteraction[ResourceType],
+) -> Callable[
+    [Request, Response, Id, str, str],
+    Coroutine[None, None, OperationOutcome | Response | None],
+]:
+    """Make a function suitable for creation of a FHIR delete API route."""
+
+    async def delete(
+        request: Request,
+        response: Response,
+        id_: Id = Path(
+            alias="id",
+            description=Resource.schema()["properties"]["id"]["title"],
+        ),
+        _format: str = FORMAT_QP,
+        _pretty: str = PRETTY_QP,
+    ) -> OperationOutcome | Response | None:
+        """Function for delete interaction."""
+        handler = cast(DeleteInteractionHandler, interaction.handler)
+        if iscoroutinefunction(handler):
+            result = await handler(InteractionContext(request, response), id_)
+        else:
+            result = handler(InteractionContext(request, response), id_)
+
+        _, result_resource = _result_to_id_resource_tuple(result)
+
+        return format_response(
+            resource=result_resource,
+            response=response,
+            format_parameters=FormatParameters.from_request(request),
+        )
+
+    delete.__annotations__ |= {
+        "resource": interaction.resource_type,
+    }
+
+    return delete
 
 
 def _result_to_id_resource_tuple(
