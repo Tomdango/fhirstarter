@@ -1,138 +1,23 @@
 """Utility functions for creation of routes and responses."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 
 from . import status
-from .fhir_specification.utils import is_resource_type
 from .interactions import ResourceType, SearchTypeInteraction, TypeInteraction
 from .resources import Bundle, OperationOutcome, Resource, Id
-
-
-@dataclass
-class InteractionInfo:
-    resource_type: str | None
-    interaction_type: Literal[
-        "create", "read", "update", "search-type", "capabilities"
-    ] | None
-    resource_id: str | None
-
-
-def categorize_fhir_request(request: Request) -> InteractionInfo:
-    """
-    Return the resource type and interaction type for a request.
-
-    Note: This function is currently oriented around specific use cases for this framework.
-    Specifically, it will correctly categorize create, read, search-type, update, and capabilities
-    interactions. Further enhancement is needed to support more cases.
-    """
-    logging.warning(
-        "fhirstarter.utils.categorize_fhir_request has been deprecated and will be "
-        "removed in a future release"
-    )
-
-    _, first_part, *rest = request.url.path.split("/")
-
-    if request.method == "GET" and first_part == "metadata":
-        return InteractionInfo(  # type: ignore[call-arg]
-            resource_type=None, interaction_type="capabilities", resource_id=None
-        )
-
-    if not is_resource_type(first_part):
-        return InteractionInfo(resource_type=None, interaction_type=None, resource_id=None)  # type: ignore[call-arg]
-
-    resource_type = first_part
-    second_part = rest[0] if rest else None
-    id_ = second_part if request.method != "POST" else None
-
-    interaction_type = None
-    match request.method, second_part == "_search", not id_:
-        case "POST", False, True:
-            interaction_type = "create"
-        case "GET", _, False:
-            interaction_type = "read"
-        case "GET", False, True:
-            interaction_type = "search-type"
-        case "POST", True, True:
-            interaction_type = "search-type"
-        case "PUT", _, False:
-            interaction_type = "update"
-        case _:
-            assert "Unexpected request format"
-
-    return InteractionInfo(resource_type, interaction_type, resource_id=id_)  # type: ignore[call-arg]
-
-
-def parse_fhir_request(request: Request) -> InteractionInfo:
-    """
-    Parse a FHIR request into its component parts, and determine an interaction type.
-
-    Note: This function is currently oriented around specific use cases for this framework.
-    Specifically, it will correctly categorize create, read, search-type, update, and capabilities
-    interactions. Further enhancement is needed to support more use cases.
-    """
-    no_info = InteractionInfo(  # type: ignore[call-arg]
-        resource_type=None, interaction_type=None, resource_id=None
-    )
-
-    split_path = request.url.path.split("/")
-    if not split_path:
-        return no_info
-
-    resource_id = None
-
-    if request.method == "GET":
-        if split_path[-1] == "metadata":
-            return InteractionInfo(  # type: ignore[call-arg]
-                resource_type=None, interaction_type="capabilities", resource_id=None
-            )
-        elif is_resource_type(split_path[-1]):
-            resource_type = split_path[-1]
-            interaction_type = "search-type"
-        elif len(split_path) >= 3:
-            resource_type, resource_id = split_path[-2:]
-            interaction_type = "read"
-        else:
-            return no_info
-    elif request.method == "POST":
-        if is_resource_type(split_path[-1]):
-            resource_type = split_path[-1]
-            interaction_type = "create"
-        elif split_path[-1] == "_search":
-            resource_type = split_path[-2]
-            interaction_type = "search-type"
-        else:
-            return no_info
-    elif request.method == "PUT":
-        if len(split_path) >= 3:
-            resource_type, resource_id = split_path[-2:]
-            interaction_type = "update"
-        else:
-            return no_info
-    else:
-        return no_info
-
-    if not is_resource_type(resource_type):
-        return no_info
-
-    return InteractionInfo(  # type: ignore[call-arg]
-        resource_type=resource_type,
-        interaction_type=interaction_type,
-        resource_id=resource_id,
-    )
 
 
 def make_operation_outcome(
     severity: str, code: str, details_text: str
 ) -> OperationOutcome:
     """Create a simple OperationOutcome given a severity, code, and details."""
-    return OperationOutcome(
-        **{
+    return OperationOutcome.parse_obj(
+        {
             "issue": [
                 {
                     "severity": severity,
@@ -553,6 +438,6 @@ def _internal_server_error(_: TypeInteraction[ResourceType]) -> _Responses:
     return {
         status.HTTP_500_INTERNAL_SERVER_ERROR: {
             "model": OperationOutcome,
-            "description": f"The server has encountered a situation it does not know how to handle.",
+            "description": "The server has encountered a situation it does not know how to handle.",
         }
     }

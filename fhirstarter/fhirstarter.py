@@ -44,7 +44,6 @@ from .utils import (
     create_route_args,
     format_response,
     make_operation_outcome,
-    parse_fhir_request,
     read_route_args,
     search_type_route_args,
     update_route_args,
@@ -52,6 +51,7 @@ from .utils import (
     patch_route_args,
     delete_route_args,
 )
+from .routing import parse_fhir_request
 
 # Suppress warnings from base fhir.resources class
 logging.getLogger("fhir.resources.core.fhirabstractmodel").setLevel(logging.WARNING + 1)
